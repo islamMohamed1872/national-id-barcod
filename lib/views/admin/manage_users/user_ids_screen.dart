@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:nationalidbarcode/controllers/admin/manage_users/manage_users_cubit.dart';
@@ -359,10 +360,25 @@ class _UserIdsScreenState extends State<UserIdsScreen> {
                 Navigator.pop(context); // close dialog
 
                 try {
-                  await FirebaseFirestore.instance
+                  print(docId);
+                 final docRef =   FirebaseFirestore.instance
                       .collection("national_ids")
-                      .doc(docId)
-                      .update({"checked": newValue});
+                      .doc(docId);
+                  if (newValue == false) {
+                    // 🔴 UNCHECK
+                    await docRef.update({
+                      "checked": false,
+                      "checkedBy": FieldValue.delete(),
+                      "checkedAt": FieldValue.delete(),
+                    });
+                  } else {
+                    // 🟢 CHECK
+                    await docRef.update({
+                      "checked": true,
+                      "checkedBy": FirebaseAuth.instance.currentUser?.uid,
+                      "checkedAt": FieldValue.serverTimestamp(),
+                    });
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

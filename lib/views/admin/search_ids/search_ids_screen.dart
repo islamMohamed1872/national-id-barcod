@@ -1,13 +1,41 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:nationalidbarcode/views/widgets/custom_scaffold.dart';
+import 'package:barcode_widget/barcode_widget.dart';
+
 import '../../../constants/app_colors.dart';
 import '../../../controllers/admin/search_ids/search_ids_cubit.dart';
 import '../../../controllers/admin/search_ids/search_ids_states.dart';
-import 'package:barcode_widget/barcode_widget.dart';
+import 'package:nationalidbarcode/views/widgets/custom_scaffold.dart';
+
+import 'barcode_scanner_screen.dart';
 
 class SearchIDsScreen extends StatelessWidget {
-  const SearchIDsScreen({super.key});
+  final bool isSearcher;
+  const SearchIDsScreen({super.key, this.isSearcher = false});
+
+  /// ============================
+  /// BARCODE SCAN
+  /// ============================
+  Future<void> _scanBarcode(
+      BuildContext context,
+      TextEditingController controller,
+      ) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BarcodeScannerScreen(),
+      ),
+    );
+
+    if (result == null) return;
+
+    final clean = result.toString().trim();
+    controller.text = clean;
+
+    final cubit = SearchIdsCubit.get(context);
+    cubit.searchNationalId(clean);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,11 +48,12 @@ class SearchIDsScreen extends StatelessWidget {
         child: BlocConsumer<SearchIdsCubit, SearchIdsStates>(
           listener: (context, state) {
             if (state is CheckToggleSuccessState) {
-              print(state);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    state.isChecked ? "تم التمييز بنجاح" : "تم إلغاء التمييز",
+                    state.isChecked
+                        ? "تم التمييز بنجاح"
+                        : "تم إلغاء التمييز",
                   ),
                   backgroundColor: Colors.green,
                   duration: const Duration(seconds: 2),
@@ -49,32 +78,54 @@ class SearchIDsScreen extends StatelessWidget {
                         color: Color(AppColors.primaryNavy),
                       ),
                     ),
+
                     const SizedBox(height: 20),
 
-                    TextField(
-                      controller: searchController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) {
-                        cubit.searchNationalId(value.trim());
-                      },
-                      decoration: InputDecoration(
-                        labelText: "ادخل الرقم القومي",
-                        filled: true,
-                        fillColor: const Color(AppColors.lightGrey),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
+                    /// ============================
+                    /// SEARCH + SCAN BUTTON
+                    /// ============================
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: searchController,
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) =>
+                                cubit.searchNationalId(value.trim()),
+                            decoration: InputDecoration(
+                              labelText: "ادخل الرقم القومي أو الباركود",
+                              filled: true,
+                              fillColor: const Color(AppColors.lightGrey),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.search),
+                                onPressed: () => cubit.searchNationalId(
+                                  searchController.text.trim(),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.search),
-                          onPressed: () {
-                            cubit.searchNationalId(searchController.text.trim());
-                          },
+                        const SizedBox(width: 10),
+                        IconButton(
+                          onPressed: () =>
+                              _scanBarcode(context, searchController),
+                          icon: const Icon(
+                            Icons.qr_code_scanner,
+                            size: 34,
+                            color: Color(AppColors.deepBlue),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
 
                     const SizedBox(height: 20),
 
+                    /// ============================
+                    /// CUBIT STATES
+                    /// ============================
                     if (state is SearchLoadingState)
                       const CircularProgressIndicator(),
 
@@ -84,79 +135,18 @@ class SearchIDsScreen extends StatelessWidget {
                         style: TextStyle(fontSize: 18),
                       ),
 
-                    // ⭐ Keep barcode visible during both SearchSuccess AND PrintPreparing states
-                    if (state is SearchSuccessState || state is PrintPreparingState)
+                    if (state is SearchSuccessState ||
+                        state is PrintPreparingState)
                       Expanded(
                         child: SingleChildScrollView(
                           child: Column(
                             children: [
-                              // Info Card
                               if (state is SearchSuccessState)
-                                Card(
-                                  elevation: 4,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: ListTile(
-                                    title: Text(
-                                      "الرقم القومي: ${state.model.nationalId}",
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(AppColors.charcoal),
-                                      ),
-                                    ),
-                                    subtitle: Builder(builder: (context) {
-                                      final dt = DateTime.fromMillisecondsSinceEpoch(state.model.time);
-                                      final barcodeNumber = state.model.barcodeNumber;
-
-                                      final formattedDate =
-                                          "${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}";
-
-                                      final formattedTime =
-                                          "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
-
-                                      return Text(
-                                        "أُضيف بواسطة: ${state.model.userName}\n"
-                                            "الحالة: ${state.model.state}\n"
-                                            "التاريخ: $formattedDate\n"
-                                            "الوقت: $formattedTime\n"
-                                            "رقم الباركود: $barcodeNumber",
-                                      );
-                                    }),
-                                    trailing: InkWell(
-                                      onTap: () {
-                                        _showCheckToggleDialog(
-                                          context,
-                                          state.model.nationalId,
-                                          state.model.isChecked,
-                                            state.model.barcodeNumber
-                                        );
-                                      },
-                                      child: Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: state.model.isChecked
-                                              ? null
-                                              : Border.all(color: Colors.black, width: 2),
-                                          color: state.model.isChecked ? Colors.green : Colors.white,
-                                        ),
-                                        child: state.model.isChecked
-                                            ? const Icon(
-                                          Icons.check,
-                                          color: Colors.white,
-                                          size: 20,
-                                        )
-                                            : null,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                _resultCard(context, state, isSearcher),
 
                               const SizedBox(height: 20),
 
-                              // ⭐ Barcode Display - Stays visible during printing
+                              /// BARCODE WIDGET
                               RepaintBoundary(
                                 key: cubit.barcodeKey,
                                 child: Container(
@@ -166,7 +156,8 @@ class SearchIDsScreen extends StatelessWidget {
                                     barcode: Barcode.code128(),
                                     data: state is SearchSuccessState
                                         ? state.model.nationalId
-                                        : (state as PrintPreparingState).nationalId,
+                                        : (state as PrintPreparingState)
+                                        .nationalId,
                                     width: 300,
                                     height: 120,
                                     drawText: false,
@@ -183,31 +174,22 @@ class SearchIDsScreen extends StatelessWidget {
 
                               const SizedBox(height: 20),
 
-                              // ⭐ Show loading indicator during printing
-                              if (state is PrintPreparingState)
-                                Column(
-                                  children: const [
-                                    CircularProgressIndicator(),
-                                    SizedBox(height: 10),
-                                    Text(
-                                      "جاري الطباعة...",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Color(AppColors.deepBlue),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              /// ============================
+                              /// ADMIN ONLY SECTION
+                              /// ============================
+                              if (!isSearcher && state is SearchSuccessState) ...[
+                                _checkedInfo(state),
+                                const SizedBox(height: 16),
+                                _scanHistory(state),
+                                const SizedBox(height: 20),
 
-                              // ⭐ Print button - only show when in SearchSuccessState
-                              if (state is SearchSuccessState)
+                                /// PRINT BUTTON (admin only)
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(AppColors.deepBlue),
+                                    backgroundColor:
+                                    const Color(AppColors.deepBlue),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
+                                        horizontal: 24, vertical: 12),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -224,23 +206,25 @@ class SearchIDsScreen extends StatelessWidget {
                                     ),
                                   ),
                                   onPressed: () {
+                                    final m =
+                                        (state).model;
                                     _showPrintConfirmation(
                                       context,
                                       cubit,
-                                      state.model.nationalId,
-                                      state.model.barcodeNumber,
+                                      m.nationalId,
+                                      m.barcodeNumber,
                                     );
                                   },
                                 ),
+                              ],
                             ],
                           ),
                         ),
                       ),
 
-                    // ⭐ Error messages
                     if (state is AdminIdErrorState)
                       Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16),
                         child: Text(
                           state.message,
                           style: const TextStyle(
@@ -249,30 +233,6 @@ class SearchIDsScreen extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
-                        ),
-                      ),
-
-                    // ⭐ Success message after printing
-                    if (state is PrintSuccessState)
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          children: const [
-                            Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 48,
-                            ),
-                            SizedBox(height: 10),
-                            Text(
-                              "تمت الطباعة بنجاح!",
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                   ],
@@ -285,62 +245,207 @@ class SearchIDsScreen extends StatelessWidget {
     );
   }
 
-  // -------------------------------------------------------------
-  // CHECKBOX TOGGLE CONFIRMATION DIALOG
-  // -------------------------------------------------------------
-  void _showCheckToggleDialog(
+  // =====================================================
+  // RESULT CARD (WITH STATUS, OWNER, DATE, TIME, BARCODE)
+  // =====================================================
+  Widget _resultCard(
       BuildContext context,
-      String nationalId,
-      bool currentCheckedState,
-      String barcodeNumber
+      SearchSuccessState state,
+      bool isSearcher,
       ) {
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            "تأكيد التحديث",
-            textDirection: TextDirection.rtl,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            currentCheckedState
-                ? "هل تريد إلغاء تمييز الرقم $nationalId؟"
-                : "هل تريد تمييز الرقم $nationalId كمستلم؟",
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.center,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("إلغاء"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(AppColors.deepBlue),
-              ),
-              onPressed: () async {
-                Navigator.pop(context);
+    final dt = DateTime.fromMillisecondsSinceEpoch(state.model.time);
+    final formattedDate =
+        "${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}";
+    final formattedTime =
+        "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 
-                final cubit = SearchIdsCubit.get(context);
-                await cubit.toggleCheckedStatus(nationalId, !currentCheckedState,barcodeNumber);
-              },
-              child: const Text(
-                "تأكيد",
-                style: TextStyle(color: Color(AppColors.warmGold)),
-              ),
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ListTile(
+        title: Text(
+          "الرقم القومي: ${state.model.nationalId}",
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(AppColors.charcoal),
+          ),
+        ),
+        subtitle: Text(
+          "أُضيف بواسطة: ${state.model.userName}\n"
+              "الحالة: ${state.model.state}\n"
+              "التاريخ: $formattedDate\n"
+              "الوقت: $formattedTime\n"
+              "رقم الباركود: ${state.model.barcodeNumber}",
+        ),
+        trailing: InkWell(
+          onTap: () {
+            if (!isSearcher || !state.model.isChecked) {
+              _showCheckToggleDialog(
+                context,
+                state.model.nationalId,
+                state.model.isChecked,
+                state.model.barcodeNumber,
+              );
+            }
+          },
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: state.model.isChecked
+                  ? null
+                  : Border.all(color: Colors.black, width: 2),
+              color: state.model.isChecked ? Colors.green : Colors.white,
             ),
+            child: state.model.isChecked
+                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // CHECKED INFO (ADMIN ONLY)
+  // =====================================================
+  Widget _checkedInfo(SearchSuccessState state) {
+    if (state.model.checkedById == null) return const SizedBox();
+
+    return FutureBuilder(
+      future: FirebaseFirestore.instance
+          .collection("users")
+          .doc(state.model.checkedById)
+          .get(),
+      builder: (_, snap) {
+        if (!snap.hasData) return const SizedBox();
+        final user = snap.data!.data();
+        final name = user?["name"] ?? "غير معروف";
+        final dt = state.model.checkedAt != null
+            ? DateTime.fromMillisecondsSinceEpoch(state.model.checkedAt!)
+            : null;
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("تم التمييز بواسطة: $name"),
+              if (dt != null)
+                Text(
+                  "وقت التمييز: $dt",
+                  style: const TextStyle(fontSize: 12),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // =====================================================
+  // SCAN HISTORY (ADMIN ONLY)
+  // =====================================================
+  Widget _scanHistory(SearchSuccessState state) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("scans")
+          .doc(state.model.nationalId)
+          .snapshots(),
+      builder: (_, snap) {
+        print(snap.hasData);
+        if (!snap.hasData || !snap.data!.exists) {
+          return const SizedBox();
+        }
+
+        final data = snap.data!.data() as Map<String, dynamic>;
+        final scans = (data["scans"] ?? []) as List;
+
+        if (scans.isEmpty) {
+          return const Text(
+            "لا يوجد سجل عمليات مسح",
+            style: TextStyle(fontSize: 16),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "سجل عمليات المسح:",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+
+            ...scans.reversed.map((scan) {
+              final ts = scan["time"];
+              final dt = ts is Timestamp ? ts.toDate() : DateTime.now();
+              final name = scan["scannedByName"] ?? "غير معروف";
+
+              return ListTile(
+                leading: const Icon(
+                  Icons.qr_code_scanner,
+                  color: Colors.deepPurple,
+                ),
+                title: Text(name),
+                subtitle: Text(
+                  "${dt.year}/${dt.month}/${dt.day} ${dt.hour}:${dt.minute}",
+                  style: const TextStyle(fontSize: 12),
+                ),
+              );
+            })
           ],
         );
       },
     );
   }
 
-  // -------------------------------------------------------------
-  // PRINT CONFIRMATION DIALOG
-  // -------------------------------------------------------------
+  // =====================================================
+  // DIALOGS
+  // =====================================================
+  void _showCheckToggleDialog(
+      BuildContext context,
+      String nationalId,
+      bool currentCheckedState,
+      String barcodeNumber,
+      ) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("تأكيد التحديث"),
+        content: Text(
+          currentCheckedState
+              ? "هل تريد إلغاء تمييز الرقم؟"
+              : "هل تريد تمييز الرقم كمستلم؟",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("إلغاء"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final cubit = SearchIdsCubit.get(context);
+              await cubit.toggleCheckedStatus(
+                nationalId,
+                !currentCheckedState,
+                barcodeNumber,
+              );
+            },
+            child: const Text("تأكيد"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showPrintConfirmation(
       BuildContext context,
       SearchIdsCubit cubit,
@@ -349,41 +454,23 @@ class SearchIDsScreen extends StatelessWidget {
       ) {
     showDialog(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            "تأكيد الطباعة",
-            textDirection: TextDirection.rtl,
-            style: TextStyle(fontWeight: FontWeight.bold),
+      builder: (_) => AlertDialog(
+        title: const Text("تأكيد الطباعة"),
+        content: const Text("هل تريد طباعة الباركود؟"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("إلغاء"),
           ),
-          content: Text(
-            "هل تريد طباعة الباركود للرقم القومي:\n$nationalId؟",
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.center,
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await cubit.printBarcode(nationalId, barcodeNumber);
+            },
+            child: const Text("طباعة"),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("إلغاء"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(AppColors.deepBlue),
-              ),
-              onPressed: () async {
-                Navigator.pop(context); // close dialog
-                await cubit.printBarcode(nationalId, barcodeNumber);
-              },
-              child: const Text(
-                "طباعة",
-                style: TextStyle(color: Color(AppColors.warmGold)),
-              ),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 }

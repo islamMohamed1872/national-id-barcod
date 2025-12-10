@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nationalidbarcode/views/admin/home/admin_home_screen.dart';
 import 'package:nationalidbarcode/views/login/login_screen.dart';
+import 'package:nationalidbarcode/views/searcher/searcher_home_screen.dart';
 import 'package:nationalidbarcode/views/user/home/user_home_screen.dart';
 
 
@@ -28,6 +29,13 @@ class AppRouter {
         pageBuilder: (context, state) => _buildPage(
           state,
           UserHomeScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/searcher-home',
+        pageBuilder: (context, state) => _buildPage(
+          state,
+          SearcherHomeScreen(),
         ),
       ),
     ],

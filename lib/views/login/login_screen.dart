@@ -39,7 +39,10 @@ class LoginScreen extends StatelessWidget {
                     if (state is LoginSuccessState) {
                       if (state.uid == "admin") {
                         context.go("/admin-home");
-                      } else {
+                      } else if(state.uid == "searcher"){
+                        context.go("/searcher-home");
+                      }
+                      else if(state.uid == "user") {
                         context.go("/user-home");
                       }
                     }

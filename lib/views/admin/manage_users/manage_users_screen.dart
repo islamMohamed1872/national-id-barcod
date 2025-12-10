@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nationalidbarcode/views/admin/manage_users/searcher_scan_history_screen.dart';
 
 import 'package:nationalidbarcode/views/admin/manage_users/user_ids_screen.dart';
 import 'package:nationalidbarcode/views/widgets/custom_scaffold.dart';
@@ -28,7 +29,7 @@ class ManageUsersScreen extends StatelessWidget {
               floatingActionButton: FloatingActionButton(
                 backgroundColor: const Color(AppColors.warmGold),
                 onPressed: () => cubit.showAddUserDialog(context),
-                child: const Icon(Icons.add,color: Colors.white,),
+                child: const Icon(Icons.add, color: Colors.white),
               ),
 
               body: Padding(
@@ -51,10 +52,12 @@ class ManageUsersScreen extends StatelessWidget {
                           ? const Center(child: CircularProgressIndicator())
                           : ListView.separated(
                         itemCount: cubit.users.length,
-                        separatorBuilder: (_, __) =>
-                        const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final user = cubit.users[index];
+
+                          // 🔥 Choose badge & color according to user type
+                          final isSearcher = user.type == "searcher";
 
                           return Card(
                             color: Colors.white,
@@ -64,38 +67,65 @@ class ManageUsersScreen extends StatelessWidget {
                             elevation: 3,
                             child: ListTile(
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => BlocProvider(
-                                      create: (_) => ManageUsersCubit(),
-                                      child: UserIdsScreen(
-                                        userId: user.uid,
-                                        userName: user.name,
+                                if(user.type=="searcher"){
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => BlocProvider(
+                                        create: (_) => ManageUsersCubit(),
+                                        child: SearcherScanHistoryScreen(
+                                          userId: user.uid,
+                                          userName: user.name,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
+                                  );
+
+                                }
+                                else{
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => BlocProvider(
+                                        create: (_) => ManageUsersCubit(),
+                                        child: UserIdsScreen(
+                                          userId: user.uid,
+                                          userName: user.name,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
 
                               },
+
+                              // 🔥 Avatar color based on type
                               leading: CircleAvatar(
-                                backgroundColor: const Color(AppColors.deepBlue),
+                                backgroundColor: isSearcher
+                                    ? Colors.deepPurple
+                                    : const Color(AppColors.deepBlue),
                                 child: Text(
                                   user.name[0],
                                   style: const TextStyle(color: Colors.white),
                                 ),
                               ),
+
                               title: Text(
                                 user.name,
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              subtitle: Text("البريد: ${user.email}\nعدد الأرقام القومية: ${user.count}"),
+
+                              subtitle: Text(
+                                "النوع: ${isSearcher ? "باحث" : "مستخدم"}\n"
+                                    "البريد: ${user.email}\n"
+                                    "${!isSearcher?"عدد الأرقام القومية: ":"عدد عمليات البحث: "}${user.count}",
+                              ),
+
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => cubit.deleteUser(user.uid),
+                                onPressed: () => _confirmDelete(context, cubit, user.uid),
                               ),
-                            )
-
+                            ),
                           );
                         },
                       ),
@@ -110,4 +140,32 @@ class ManageUsersScreen extends StatelessWidget {
     );
   }
 
+  // ================================================================
+  // 🔥 CONFIRM DELETE DIALOG
+  // ================================================================
+  void _confirmDelete(BuildContext context, ManageUsersCubit cubit, String uid) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("تأكيد الحذف"),
+        content: const Text("هل أنت متأكد أنك تريد حذف هذا المستخدم؟"),
+        actions: [
+          TextButton(
+            child: const Text("إلغاء"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text("حذف", style: TextStyle(color: Colors.white)),
+            onPressed: () {
+              Navigator.pop(context);
+              cubit.deleteUser(uid);
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }

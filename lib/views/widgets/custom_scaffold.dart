@@ -15,27 +15,13 @@ class CustomScaffold extends StatelessWidget {
       appBar: appBar,
       body: SafeArea(
         child: Stack(
+          alignment: AlignmentGeometry.center,
           children: [
             // 🔹 Main content of the screen
             Positioned.fill(child: body),
 
-            // 🔹 Watermark (bottom-left)
-            Positioned(
-              left: 12,
-              bottom: 12,
-              child: Text(
-                "M. Atef",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-
             // 🔹 Second watermark (bottom-right)
             Positioned(
-              right: 12,
               bottom: 12,
               child: Text(
                 "M. Osama El Baz",
